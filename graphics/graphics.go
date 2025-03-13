@@ -6,7 +6,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 
 	"github.com/swensone/gorito/emulator"
-	"github.com/swensone/gorito/util"
+	"github.com/swensone/gorito/gmath"
 )
 
 type Graphics struct {
@@ -49,7 +49,7 @@ func New(name string, windowwidth, windowheight int32, fullscreen bool, mode emu
 	// determine the pixel size based on the max square that will fit in both
 	// screen directions, and center it in both directions
 	screenWidth, screenHeight := emulator.GetRes(mode)
-	pixelSize := util.Min(w/screenWidth, h/screenHeight)
+	pixelSize := gmath.Min(w/screenWidth, h/screenHeight)
 	xoffset := (w - pixelSize*screenWidth) / 2
 	yoffset := (h - pixelSize*screenHeight) / 2
 

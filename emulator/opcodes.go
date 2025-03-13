@@ -2,7 +2,6 @@ package emulator
 
 import (
 	"crypto/rand"
-	"fmt"
 	"math/big"
 )
 
@@ -40,20 +39,6 @@ func (c *CPU) scrollLeft() {
 		newGfx = append(newGfx, scroll...)
 	}
 	c.gfx = newGfx
-}
-
-func (c *CPU) printBuffer() {
-	for y := range c.yres {
-		fmt.Print("|")
-		for x := range c.xres {
-			if c.gfx[y*c.xres+x] {
-				fmt.Print("#")
-			} else {
-				fmt.Print(" ")
-			}
-		}
-		fmt.Println("|")
-	}
 }
 
 // exitInterpreter: 00FD: Exits the interpreter (superchip extension)
@@ -292,12 +277,10 @@ func (c *CPU) drawSprite(X, Y, N uint8) {
 	offset := c.idx
 	c.registers[0xF] = 0x00
 	for i := range spriteHeight {
-		var spriteData uint16
+		spriteData := uint16(c.memory[offset])
+		offset++
 		if spriteWidth == 16 {
-			spriteData = uint16(c.memory[offset])<<8 | uint16(c.memory[offset+1])
-			offset += 2
-		} else {
-			spriteData = uint16(c.memory[offset])
+			spriteData = spriteData<<8 | uint16(c.memory[offset])
 			offset++
 		}
 
@@ -316,20 +299,11 @@ func (c *CPU) drawSprite(X, Y, N uint8) {
 					continue
 				}
 			}
-			// gfxIdx := posY*int(xres) + posX
 
 			set := (spriteData >> (spriteWidth - 1 - bit) & 0x01) == 1
 			if c.drawAt(posX, posY, scaleFactor, set) {
-				c.registers[0x0F] = 0x01
+				c.registers[0xF] = 0x01
 			}
-			/*
-				prevSet := c.gfx[gfxIdx]
-				c.gfx[gfxIdx] = prevSet != set
-
-				if prevSet && set {
-					c.registers[0x0F] = 0x01
-				}
-			*/
 		}
 	}
 	c.drawFlag = true
@@ -399,10 +373,16 @@ func (c *CPU) addVXtoI(X uint8) {
 	c.idx += uint16(c.registers[X])
 }
 
-// setItoChar: FX29: Sets I to the location of the sprite for the character in VX(only consider the lowest nibble).
+// setItoChar: FX29: Sets I to the location of the sprite for the character in VX (only consider the lowest nibble).
 // Characters 0-F (in hexadecimal) are represented by a 4x5 font.
 func (c *CPU) setItoChar(X uint8) {
 	c.idx = FONT_OFFSET + uint16(c.registers[X])*5
+}
+
+// setItoHiresChar: FX30: Sets I to the location of the sprite for the character in VX (only consider the lowest nibble).
+// Characters 0-9 are represented by a 8x10 font.
+func (c *CPU) setItoHiresChar(X uint8) {
+	c.idx = SUPERCHIP_FONT_OFFSET + uint16(c.registers[X])*10
 }
 
 // storeVXatIinBCD: FX33: Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location

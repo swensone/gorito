@@ -187,9 +187,13 @@ func (c *CPU) Reset() {
 		c.memory[i] = 0
 	}
 
-	// Load the font
+	// Load the fonts
 	for i, val := range fontSet {
 		c.memory[FONT_OFFSET+i] = val
+	}
+
+	for i, val := range superchipFontSet {
+		c.memory[SUPERCHIP_FONT_OFFSET+i] = val
 	}
 }
 
@@ -303,7 +307,7 @@ func (c *CPU) execOpcode() error {
 		// code block).
 		c.skipIfVXnotEqualsVY(N2, N3)
 	} else if N1 == 0xA {
-		// ANNN: Sets I to the address NNN
+		// ANNN: Sets IDX to the address NNN
 		c.setItoNNN(NNN)
 	} else if N1 == 0xB {
 		// BNNN: Jumps to the address NNN plus V0
@@ -313,7 +317,7 @@ func (c *CPU) execOpcode() error {
 		c.setVXtoNNNandRand(N2, B2)
 	} else if N1 == 0xD {
 		// DXYN: Draws a sprite at coordinate (VX, VN3) that has a width of 8 pixels and a height of N pixels.
-		// Each row of 8 pixels is read as bit-coded starting from memory location I; I value does not change
+		// Each row of 8 pixels is read as bit-coded starting from memory location IDX ; IDX  value does not change
 		// after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are
 		// flipped from set to unset when the sprite is drawn, and to 0 if that does not happen.
 		c.drawSprite(N2, N3, N4)
@@ -339,23 +343,27 @@ func (c *CPU) execOpcode() error {
 		// FX18: Sets the sound timer to VX.
 		c.setSoundTimerToVX(N2)
 	} else if N1 == 0xF && B2 == 0x1E {
-		// FX1E: Adds VX to I. VF is not affected.
+		// FX1E: Adds VX to IDX. VF is not affected.
 		c.addVXtoI(N2)
 	} else if N1 == 0xF && B2 == 0x29 {
-		// FX29: Sets I to the location of the sprite for the character in VX(only consider the lowest nibble).
+		// FX29: Sets IDX to the location of the sprite for the character in VX (only consider the lowest nibble).
 		// Characters 0-F (in hexadecimal) are represented by a 4x5 font.
 		c.setItoChar(N2)
+	} else if N1 == 0xF && B2 == 0x30 {
+		// setItoHiresChar: FX30: Sets IDX to the location of the sprite for the character in VX (only consider the lowest nibble).
+		// Characters 0-9 are represented by a 8x10 font.
+		c.setItoHiresChar(N2)
 	} else if N1 == 0xF && B2 == 0x33 {
 		// FX33: Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location
-		// in I, the tens digit at location I+1, and the ones digit at location I+2.
+		// in IDX , the tens digit at location IDX+1, and the ones digit at location IDX+2.
 		c.storeVXatIinBCD(N2)
 	} else if N1 == 0xF && B2 == 0x55 {
-		// FX55: Stores from V0 to VX (including VX) in memory, starting at address I. The offset from I is increased by 1
-		// for each value written, but I itself is left unmodified.[d][24]
+		// FX55: Stores from V0 to VX (including VX) in memory, starting at address IDX. The offset from IDX  is increased by 1
+		// for each value written, but IDX  itself is left unmodified.[d][24]
 		c.storeRegistersInMemory(N2)
 	} else if N1 == 0xF && B2 == 0x65 {
-		// FX65: Fills from V0 to VX (including VX) with values from memory, starting at address I. The offset from I
-		// is increased by 1 for each value read, but I itself is left unmodified.
+		// FX65: Fills from V0 to VX (including VX) with values from memory, starting at address IDX. The offset from IDX
+		// is increased by 1 for each value read, but IDX  itself is left unmodified.
 		c.storeMemInRegisters(N2)
 	} else {
 		c.log.Error("bad opcode: unable to interpret opcode", "opcode", fmt.Sprintf("%04X", opcode))

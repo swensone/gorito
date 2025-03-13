@@ -66,10 +66,5 @@ func (m *Mode) MarshalJSON() ([]byte, error) {
 }
 
 func GetRes(m Mode) (int32, int32) {
-	/*
-		if m == MODE_CHIP8 {
-			return 64, 32
-		}
-	*/
 	return 128, 64
 }
