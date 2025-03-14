@@ -17,14 +17,21 @@ import (
 // 0x200-0xFFF - Program ROM and work RAM
 
 func New(log *slog.Logger, logOpcodes bool, mode Mode, display Display, audio Audio) (*CPU, error) {
+	storage, err := NewStorage("~/.config/gorito-storage.json", log)
+	if err != nil {
+		return nil, err
+	}
+
 	xres, yres := GetRes(mode)
 	c := &CPU{
+		registers:  make([]uint8, 16),
 		audio:      audio,
 		display:    display,
 		mode:       mode,
 		xres:       xres,
 		yres:       yres,
 		gfx:        make([]bool, xres*yres),
+		storage:    storage,
 		log:        log,
 		logOpcodes: logOpcodes,
 	}
@@ -35,7 +42,7 @@ func New(log *slog.Logger, logOpcodes bool, mode Mode, display Display, audio Au
 
 type CPU struct {
 	// core emulator functionality
-	registers  [16]uint8
+	registers  []uint8
 	stack      [16]uint16
 	sp         uint8
 	memory     [1924 * 64]uint8
@@ -65,6 +72,10 @@ type CPU struct {
 	// interfaces for graphics and sound functionality
 	display Display
 	audio   Audio
+
+	// persistent storage for superchip and xo-chip
+	storage *Storage
+	rom     string
 
 	// logger
 	log        *slog.Logger
@@ -101,6 +112,7 @@ func (c *CPU) LoadProgram(filepath string) error {
 
 	}
 	c.log.Debug("done loading program")
+	c.rom = RomName(filepath)
 
 	return nil
 }
@@ -365,6 +377,12 @@ func (c *CPU) execOpcode() error {
 		// FX65: Fills from V0 to VX (including VX) with values from memory, starting at address IDX. The offset from IDX
 		// is increased by 1 for each value read, but IDX  itself is left unmodified.
 		c.storeMemInRegisters(N2)
+	} else if N1 == 0xF && B2 == 0x75 {
+		// FX75: Store V0..VX in RPL user flags (X <= 7 if superchip, X <= 16 if xo-chip)
+		c.storeRegistersToStorage(N2)
+	} else if N1 == 0xF && B2 == 0x85 {
+		// FX85: Read V0..VX from RPL user flags (X <= 7 if superchip, X <= 16 if xo-chip)
+		c.loadRegistersFromStorage(N2)
 	} else {
 		c.log.Error("bad opcode: unable to interpret opcode", "opcode", fmt.Sprintf("%04X", opcode))
 	}

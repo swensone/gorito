@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/veandco/go-sdl2/sdl"
 
@@ -19,7 +17,6 @@ import (
 )
 
 func main() {
-
 	cfg, err := config.Parse()
 	if err != nil {
 		slog.Default().Error("error parsing config", slog.Any("error", err))
@@ -41,9 +38,7 @@ func main() {
 	defer sdl.Quit()
 
 	// create a title for the display window
-	romname := filepath.Base(cfg.ROM)
-	romname = strings.TrimSuffix(romname, filepath.Ext(romname))
-	screenName := fmt.Sprintf("gorito - mode %s - %s", cfg.Mode.String(), romname)
+	screenName := fmt.Sprintf("gorito - mode %s - %s", cfg.Mode.String(), emulator.RomName(cfg.ROM))
 
 	// create our graphics service
 	display, err := graphics.New(screenName, cfg.Width, cfg.Height, cfg.Fullscreen, cfg.Mode, cfg.BG, cfg.FG)

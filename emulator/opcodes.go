@@ -420,3 +420,27 @@ func (c *CPU) storeMemInRegisters(X uint8) {
 		c.idx += (uint16(X) + 1)
 	}
 }
+
+// storeRegistersToStorage: FX75: Store V0..VX in RPL user flags (X <= 7 if superchip, X <= 16 if xo-chip)
+func (c *CPU) storeRegistersToStorage(X uint8) {
+	c.log.Debug("storeRegistersToStorag", "X", X)
+	if c.mode == MODE_CHIP8 {
+		return
+	} else if c.mode == MODE_SUPERCHIP && X > 7 {
+		X = 7
+	}
+
+	c.storage.Persist(c.rom, c.registers[:int(X)+1])
+}
+
+// loadRegistersFromStorage: FX85: Read V0..VX from RPL user flags (X <= 7 if superchip, X <= 16 if xo-chip)
+func (c *CPU) loadRegistersFromStorage(X uint8) {
+	c.log.Debug("loadRegistersFromStorage", "X", X)
+	if c.mode == MODE_CHIP8 {
+		return
+	} else if c.mode == MODE_SUPERCHIP && X > 7 {
+		X = 7
+	}
+
+	c.storage.Load(c.rom, int(X), c.registers)
+}
