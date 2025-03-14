@@ -17,6 +17,7 @@ import (
 	"github.com/knadh/koanf/providers/posflag"
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
+
 	"github.com/swensone/gorito/emulator"
 	"github.com/swensone/gorito/graphics"
 )

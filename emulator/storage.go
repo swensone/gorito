@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
-	"github.com/swensone/gorito/util"
+	"github.com/cockroachdb/errors"
+
+	"github.com/swensone/gorito/gmath"
 )
 
 type Storage struct {
@@ -85,7 +86,7 @@ func (s *Storage) Persist(rom string, flags []uint8) {
 }
 
 func (s *Storage) Load(rom string, len uint16) []uint8 {
-	len = util.Min(len, 16)
+	len = gmath.Min(len, 16)
 
 	data := make([]uint8, len)
 	for _, g := range s.GameData {
