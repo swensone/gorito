@@ -24,6 +24,7 @@ func New(log *slog.Logger, logOpcodes bool, mode Mode, display Display, audio Au
 
 	xres, yres := GetRes(mode)
 	c := &CPU{
+		registers:  make([]uint8, 16),
 		audio:      audio,
 		display:    display,
 		mode:       mode,
@@ -41,7 +42,7 @@ func New(log *slog.Logger, logOpcodes bool, mode Mode, display Display, audio Au
 
 type CPU struct {
 	// core emulator functionality
-	registers  [16]uint8
+	registers  []uint8
 	stack      [16]uint16
 	sp         uint8
 	memory     [1924 * 64]uint8

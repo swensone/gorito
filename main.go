@@ -17,7 +17,6 @@ import (
 )
 
 func main() {
-
 	cfg, err := config.Parse()
 	if err != nil {
 		slog.Default().Error("error parsing config", slog.Any("error", err))

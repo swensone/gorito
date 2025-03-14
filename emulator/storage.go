@@ -85,8 +85,8 @@ func (s *Storage) Persist(rom string, flags []uint8) {
 	}
 }
 
-func (s *Storage) Load(rom string, len uint16) []uint8 {
-	len = gmath.Min(len, 16)
+func (s *Storage) Load(rom string, len int, registers []uint8) {
+	len = gmath.Min(len+1, 16)
 
 	data := make([]uint8, len)
 	for _, g := range s.GameData {
@@ -94,8 +94,7 @@ func (s *Storage) Load(rom string, len uint16) []uint8 {
 			copy(data, g.Flags[:len])
 		}
 	}
-
-	return data
+	copy(registers, data)
 }
 
 func (s *Storage) Save() error {
