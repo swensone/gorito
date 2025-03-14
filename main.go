@@ -16,7 +16,6 @@ import (
 	"github.com/swensone/gorito/config"
 	"github.com/swensone/gorito/emulator"
 	"github.com/swensone/gorito/graphics"
-	"github.com/swensone/gorito/logger"
 )
 
 func main() {
@@ -27,9 +26,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		ReplaceAttr: logger.ReplaceAttr,
-		Level:       cfg.Level,
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     cfg.Level,
 	})
 	log := slog.New(handler)
 	slog.SetDefault(log)

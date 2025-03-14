@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/pkg/errors"
+	"github.com/cockroachdb/errors"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
