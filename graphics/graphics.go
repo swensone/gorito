@@ -20,11 +20,10 @@ type Graphics struct {
 	pixelSize    int32
 	xOffset      int32
 	yOffset      int32
-	bgColor      *RGB
-	fgColor      *RGB
+	colormap     map[uint8]*RGB
 }
 
-func New(name string, windowwidth, windowheight int32, fullscreen bool, mode emulator.Mode, bg *RGB, fg *RGB) (*Graphics, error) {
+func New(name string, windowwidth, windowheight int32, fullscreen bool, mode emulator.Mode, colormap map[uint8]*RGB) (*Graphics, error) {
 	flags := uint32(sdl.WINDOW_SHOWN)
 	if fullscreen {
 		res := screenresolution.GetPrimary()
@@ -60,8 +59,7 @@ func New(name string, windowwidth, windowheight int32, fullscreen bool, mode emu
 		screenHeight: screenHeight,
 		windowWidth:  w,
 		windowHeight: h,
-		bgColor:      bg,
-		fgColor:      fg,
+		colormap:     colormap,
 		pixelSize:    pixelSize,
 		xOffset:      xoffset,
 		yOffset:      yoffset,
@@ -81,9 +79,9 @@ func (g *Graphics) Close() error {
 	return merr.ErrorOrNil()
 }
 
-func (g *Graphics) Draw(gfx []bool) error {
-	// clear the screen with the background color
-	if err := g.renderer.SetDrawColor(g.bgColor.R, g.bgColor.G, g.bgColor.B, 255); err != nil {
+func (g *Graphics) Draw(gfx []uint8) error {
+	// clear the screen with the background color (color 0)
+	if err := g.renderer.SetDrawColor(g.colormap[0].R, g.colormap[0].G, g.colormap[0].B, 255); err != nil {
 		return err
 	}
 
@@ -92,20 +90,23 @@ func (g *Graphics) Draw(gfx []bool) error {
 	}
 
 	// draw each pixel
-	if err := g.renderer.SetDrawColor(g.fgColor.R, g.fgColor.G, g.fgColor.B, 255); err != nil {
-		return err
-	}
 	idx := 0
 	for y := range g.screenHeight {
 		for x := range g.screenWidth {
-			if gfx[idx] {
-				if err := g.renderer.FillRect(&sdl.Rect{
-					X: g.xOffset + x*g.pixelSize,
-					Y: g.yOffset + y*g.pixelSize,
-					W: g.pixelSize,
-					H: g.pixelSize,
-				}); err != nil {
-					return err
+			if gfx[idx] > 0 {
+				color, ok := g.colormap[gfx[idx]]
+				if ok {
+					if err := g.renderer.SetDrawColor(color.R, color.G, color.B, 255); err != nil {
+						return err
+					}
+					if err := g.renderer.FillRect(&sdl.Rect{
+						X: g.xOffset + x*g.pixelSize,
+						Y: g.yOffset + y*g.pixelSize,
+						W: g.pixelSize,
+						H: g.pixelSize,
+					}); err != nil {
+						return err
+					}
 				}
 			}
 			idx++

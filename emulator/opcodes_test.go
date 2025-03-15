@@ -9,11 +9,14 @@ import (
 
 func TestDrawSprite(t *testing.T) {
 	c := &CPU{
-		xres:    128,
-		yres:    64,
-		gfx:     make([]bool, 128*64),
-		hires:   false,
-		display: newTermDisplay(128, 64),
+		xres:      128,
+		yres:      64,
+		gfxp1:     make([]uint8, 128*64),
+		gfxp2:     make([]uint8, 128*64),
+		plane:     1,
+		hires:     false,
+		display:   newTermDisplay(128, 64),
+		registers: make([]uint8, 16),
 	}
 	c.Reset()
 
@@ -102,7 +105,7 @@ func TestDrawSprite(t *testing.T) {
 			c.registers[1] = 0
 			fmt.Printf("draw sprite 0x%03x at 0,0\n", tt.sprite1)
 			c.drawSprite(0, 1, tt.height)
-			c.display.Draw(c.gfx)
+			c.display.Draw(c.gfxp1)
 
 			// draw a 3 at specific coordinates and check for overlap
 			c.idx = tt.sprite2
@@ -110,7 +113,7 @@ func TestDrawSprite(t *testing.T) {
 			c.registers[1] = tt.y
 			fmt.Printf("draw sprite 0x%03x at %d,%d\n", tt.sprite2, tt.x, tt.y)
 			c.drawSprite(0, 1, tt.height)
-			c.display.Draw(c.gfx)
+			c.display.Draw(c.gfxp1)
 
 			assert.Equal(t, c.registers[0x0f], tt.vf)
 			assert.Equal(t, true, c.drawFlag)
@@ -127,7 +130,7 @@ func newTermDisplay(xres, yres int) *termDisplay {
 	return &termDisplay{xres: xres, yres: yres}
 }
 
-func (t *termDisplay) Draw(gfx []bool) error {
+func (t *termDisplay) Draw(gfx []uint8) error {
 	for range t.xres + 2 {
 		fmt.Print("*")
 	}
@@ -135,8 +138,8 @@ func (t *termDisplay) Draw(gfx []bool) error {
 	for y := range t.yres {
 		fmt.Print("*")
 		for x := range t.xres {
-			if gfx[y*t.xres+x] {
-				fmt.Print("#")
+			if gfx[y*t.xres+x] > 0 {
+				fmt.Printf("%d", gfx[y*t.xres+x])
 			} else {
 				fmt.Print(" ")
 			}

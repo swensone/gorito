@@ -41,7 +41,13 @@ func main() {
 	screenName := fmt.Sprintf("gorito - mode %s - %s", cfg.Mode.String(), emulator.RomName(cfg.ROM))
 
 	// create our graphics service
-	display, err := graphics.New(screenName, cfg.Width, cfg.Height, cfg.Fullscreen, cfg.Mode, cfg.BG, cfg.FG)
+	colormap := map[uint8]*graphics.RGB{
+		0: cfg.BG,
+		1: cfg.FG1,
+		2: cfg.FG2,
+		3: cfg.FG3,
+	}
+	display, err := graphics.New(screenName, cfg.Width, cfg.Height, cfg.Fullscreen, cfg.Mode, colormap)
 	if err != nil {
 		log.Error("failed to create graphics renderer", slog.Any("error", err))
 	}

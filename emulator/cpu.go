@@ -30,7 +30,9 @@ func New(log *slog.Logger, logOpcodes bool, mode Mode, display Display, audio Au
 		mode:       mode,
 		xres:       xres,
 		yres:       yres,
-		gfx:        make([]bool, xres*yres),
+		gfxp1:      make([]uint8, xres*yres),
+		gfxp2:      make([]uint8, xres*yres),
+		plane:      1,
 		storage:    storage,
 		log:        log,
 		logOpcodes: logOpcodes,
@@ -54,7 +56,9 @@ type CPU struct {
 	counter    uint64
 
 	// graphics
-	gfx      []bool
+	gfxp1    []uint8
+	gfxp2    []uint8
+	plane    uint8
 	xres     int32
 	yres     int32
 	hires    bool
@@ -145,7 +149,7 @@ func (c *CPU) Run(rom string) error {
 		// update the display at approx 60hz
 		if time.Since(lastDraw) > time.Second/60 {
 			if c.drawFlag {
-				if err := c.display.Draw(c.gfx); err != nil {
+				if err := c.display.Draw(c.getGfx()); err != nil {
 					return errors.Wrap(err, "failed during draw")
 				}
 				c.drawFlag = false
@@ -169,6 +173,14 @@ func (c *CPU) Run(rom string) error {
 	}
 }
 
+func (c *CPU) getGfx() []uint8 {
+	res := make([]uint8, len(c.gfxp1))
+	for i := range c.gfxp1 {
+		res[i] = c.gfxp2[i]<<1 | c.gfxp1[i]
+	}
+	return res
+}
+
 func (c *CPU) Reset() {
 	c.pc = 0x200       // Program counter starts at 0x200
 	c.idx = 0          // Reset index register
@@ -182,6 +194,7 @@ func (c *CPU) Reset() {
 
 	// Clear graphics memory
 	c.clearDisplay()
+	c.plane = 1
 	c.hires = false
 
 	// Clear stack
@@ -210,8 +223,15 @@ func (c *CPU) Reset() {
 }
 
 func (c *CPU) clearDisplay() {
-	for i := range c.gfx {
-		c.gfx[i] = false
+	if c.plane&0x01 > 0 {
+		for i := range c.gfxp1 {
+			c.gfxp1[i] = 0
+		}
+	}
+	if c.plane&0x02 > 0 {
+		for i := range c.gfxp1 {
+			c.gfxp1[i] = 0
+		}
 	}
 	c.drawFlag = true
 }
@@ -341,6 +361,9 @@ func (c *CPU) execOpcode() error {
 		// EXA1: Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed
 		// (usually the next instruction is a jump to skip a code block)
 		c.skipIfNotPressed(N2)
+	} else if N1 == 0xF && B2 == 0x02 {
+		// FX01: Select bit planes to draw on
+		c.SelectPlane(N2)
 	} else if N1 == 0xF && B2 == 0x07 {
 		// FX07: Sets VX to the value of the delay timer.
 		c.setVXToDelay(N2)
