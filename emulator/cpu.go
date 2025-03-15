@@ -193,6 +193,7 @@ func (c *CPU) Reset() {
 	c.finished = false // Reset the finished flag
 
 	// Clear graphics memory
+	c.plane = 3
 	c.clearDisplay()
 	c.plane = 1
 	c.hires = false
@@ -373,7 +374,7 @@ func (c *CPU) execOpcode() error {
 	} else if opcode == 0xF000 {
 		c.pc += 2
 		c.loadHiMem(c.opcodeAt())
-	} else if N1 == 0xF && B2 == 0x02 {
+	} else if N1 == 0xF && B2 == 0x01 {
 		// FX01: Select bit planes to draw on
 		c.SelectPlane(N2)
 	} else if N1 == 0xF && B2 == 0x07 {
