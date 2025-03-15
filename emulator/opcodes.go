@@ -122,7 +122,7 @@ func (c *CPU) callNNN(NNN uint16) {
 func (c *CPU) skipIfVXEqualsNN(X, NN uint8) {
 	if c.registers[X] == NN {
 		c.pc += 2
-		if c.opcodeAt() == 0xF000 {
+		if c.opcodeAt(c.pc) == 0xF000 {
 			c.pc += 2
 		}
 	}
@@ -132,7 +132,7 @@ func (c *CPU) skipIfVXEqualsNN(X, NN uint8) {
 func (c *CPU) skipIfVXNotEqualsNN(X, NN uint8) {
 	if c.registers[X] != NN {
 		c.pc += 2
-		if c.opcodeAt() == 0xF000 {
+		if c.opcodeAt(c.pc) == 0xF000 {
 			c.pc += 2
 		}
 	}
@@ -142,7 +142,7 @@ func (c *CPU) skipIfVXNotEqualsNN(X, NN uint8) {
 func (c *CPU) skipIfVXEqualsVY(X, Y uint8) {
 	if c.registers[X] == c.registers[Y] {
 		c.pc += 2
-		if c.opcodeAt() == 0xF000 {
+		if c.opcodeAt(c.pc) == 0xF000 {
 			c.pc += 2
 		}
 	}
@@ -288,7 +288,7 @@ func (c *CPU) shiftVXLeft(X, Y uint8) {
 func (c *CPU) skipIfVXnotEqualsVY(X, Y uint8) {
 	if c.registers[X] != c.registers[Y] {
 		c.pc += 2
-		if c.opcodeAt() == 0xF000 {
+		if c.opcodeAt(c.pc) == 0xF000 {
 			c.pc += 2
 		}
 	}
@@ -421,7 +421,7 @@ func (c *CPU) drawAt(x, y, scaleFactor int, set uint8) bool {
 func (c *CPU) skipIfPressed(X uint8) {
 	if c.keys[c.registers[X]] {
 		c.pc += 2
-		if c.opcodeAt() == 0xF000 {
+		if c.opcodeAt(c.pc) == 0xF000 {
 			c.pc += 2
 		}
 	}
@@ -432,7 +432,7 @@ func (c *CPU) skipIfPressed(X uint8) {
 func (c *CPU) skipIfNotPressed(X uint8) {
 	if !c.keys[c.registers[X]] {
 		c.pc += 2
-		if c.opcodeAt() == 0xF000 {
+		if c.opcodeAt(c.pc) == 0xF000 {
 			c.pc += 2
 		}
 	}
@@ -440,6 +440,7 @@ func (c *CPU) skipIfNotPressed(X uint8) {
 
 // loadHiMem: F000 NNNN: Load I with 16-bit address NNNN
 func (c *CPU) loadHiMem(NNNN uint16) {
+	c.pc += 2
 	c.idx = NNNN
 }
 

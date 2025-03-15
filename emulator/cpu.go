@@ -239,7 +239,7 @@ func (c *CPU) clearDisplay() {
 
 func (c *CPU) execOpcode() error {
 	// fetch the opcode
-	opcode := c.opcodeAt()
+	opcode := c.opcodeAt(c.pc)
 	B1 := uint8(opcode >> 8)
 	B2 := uint8(opcode)
 	N1 := B1 & 0xF0 >> 4
@@ -372,8 +372,8 @@ func (c *CPU) execOpcode() error {
 		// (usually the next instruction is a jump to skip a code block)
 		c.skipIfNotPressed(N2)
 	} else if opcode == 0xF000 {
-		c.pc += 2
-		c.loadHiMem(c.opcodeAt())
+		// F000: Load the next two bytes into IDX
+		c.loadHiMem(c.opcodeAt(c.pc + 2))
 	} else if N1 == 0xF && B2 == 0x01 {
 		// FX01: Select bit planes to draw on
 		c.SelectPlane(N2)
@@ -444,7 +444,7 @@ func (c *CPU) execOpcode() error {
 	return nil
 }
 
-func (c *CPU) opcodeAt() uint16 {
-	opcode := uint16(c.memory[c.pc])<<8 | uint16(c.memory[c.pc+1])
+func (c *CPU) opcodeAt(pc uint16) uint16 {
+	opcode := uint16(c.memory[pc])<<8 | uint16(c.memory[pc+1])
 	return opcode
 }
