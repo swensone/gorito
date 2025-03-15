@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/veandco/go-sdl2/sdl"
 
@@ -36,6 +37,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer sdl.Quit()
+
+	// if the extension matches a mode, use it
+	romext := filepath.Ext(cfg.ROM)
+	if romext == ".xo8" {
+		cfg.Mode = emulator.MODE_XOCHIP
+	} else if romext == ".sc8" {
+		cfg.Mode = emulator.MODE_SUPERCHIP
+	}
 
 	// create a title for the display window
 	screenName := fmt.Sprintf("gorito - mode %s - %s", cfg.Mode.String(), emulator.RomName(cfg.ROM))

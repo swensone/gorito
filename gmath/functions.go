@@ -18,7 +18,7 @@ func Max[T Number](a, b T) T {
 	return b
 }
 
-func Abs[T Number](a, b T) T {
+func Abs[T Number](a T) T {
 	if a < 0 {
 		return -a
 	}
