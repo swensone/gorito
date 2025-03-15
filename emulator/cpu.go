@@ -47,7 +47,7 @@ type CPU struct {
 	registers  []uint8
 	stack      [16]uint16
 	sp         uint8
-	memory     [1924 * 64]uint8
+	memory     [64 * 1024]uint8
 	idx        uint16
 	pc         uint16
 	timer      uint32
@@ -238,9 +238,9 @@ func (c *CPU) clearDisplay() {
 
 func (c *CPU) execOpcode() error {
 	// fetch the opcode
-	B1 := c.memory[c.pc]
-	B2 := c.memory[c.pc+1]
-	opcode := uint16(B1)<<8 | uint16(B2)
+	opcode := c.opcodeAt()
+	B1 := uint8(opcode >> 8)
+	B2 := uint8(opcode)
 	N1 := B1 & 0xF0 >> 4
 	N2 := B1 & 0x0F
 	N3 := B2 & 0xF0 >> 4
@@ -262,6 +262,9 @@ func (c *CPU) execOpcode() error {
 	if B1 == 0x00 && N3 == 0xc {
 		// scrollDown: 00CN: Scroll the display down by 0 to 15 pixels
 		c.scrollDown(N4)
+	} else if B1 == 0x00 && N3 == 0xd {
+		// scrollUp: 00DN: Scroll the display up by 0 to 15 pixels
+		c.scrollUp(N4)
 	} else if opcode == 0x00FB {
 		// scrollRight: 00FB Scroll the display right by 4 pixels
 		c.scrollRight()
@@ -298,6 +301,12 @@ func (c *CPU) execOpcode() error {
 	} else if N1 == 0x5 && N4 == 0x0 {
 		// 5XY0: Skips the next instruction if VX equals VY
 		c.skipIfVXEqualsVY(N2, N3)
+	} else if N1 == 0x5 && N4 == 0x2 {
+		// saveVXthroughVY: 5XY2: Save an inclusive range of registers VX to VY in memory starting at I
+		c.saveVXthroughVY(N2, N3)
+	} else if N1 == 0x5 && N4 == 0x3 {
+		// loadVXthroughVY: 5XY3: Load an inclusive range of registers VX to VY from memory starting at I
+		c.loadVXthroughVY(N2, N3)
 	} else if N1 == 0x6 {
 		// 6XNN: Sets VX to NN
 		c.setVXtoNN(N2, B2)
@@ -361,6 +370,9 @@ func (c *CPU) execOpcode() error {
 		// EXA1: Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed
 		// (usually the next instruction is a jump to skip a code block)
 		c.skipIfNotPressed(N2)
+	} else if opcode == 0xF000 {
+		c.pc += 2
+		c.loadHiMem(c.opcodeAt())
 	} else if N1 == 0xF && B2 == 0x02 {
 		// FX01: Select bit planes to draw on
 		c.SelectPlane(N2)
@@ -429,4 +441,9 @@ func (c *CPU) execOpcode() error {
 
 	c.counter++
 	return nil
+}
+
+func (c *CPU) opcodeAt() uint16 {
+	opcode := uint16(c.memory[c.pc])<<8 | uint16(c.memory[c.pc+1])
+	return opcode
 }

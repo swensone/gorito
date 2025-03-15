@@ -3,6 +3,8 @@ package emulator
 import (
 	"crypto/rand"
 	"math/big"
+
+	"github.com/swensone/gorito/gmath"
 )
 
 // returnFromSubroutine: 00EE: Return from subroutine
@@ -21,6 +23,19 @@ func (c *CPU) scrollDown(N uint8) {
 	}
 	if c.plane&0x02 > 0 {
 		c.gfxp2 = append(scroll, c.gfxp2[0:len(c.gfxp2)-scrollLen]...)
+	}
+}
+
+// scrollUp: 00DN: Scroll the display up by 0 to 15 pixels
+func (c *CPU) scrollUp(N uint8) {
+	scrollLen := int(c.xres) * int(N)
+	scroll := make([]uint8, scrollLen)
+	if c.plane&0x01 > 0 {
+		c.gfxp1 = append(c.gfxp1[len(c.gfxp1)-scrollLen:], scroll...)
+	}
+	if c.plane&0x02 > 0 {
+		c.gfxp2 = append(c.gfxp2[len(c.gfxp2)-scrollLen:], scroll...)
+
 	}
 }
 
@@ -107,6 +122,9 @@ func (c *CPU) callNNN(NNN uint16) {
 func (c *CPU) skipIfVXEqualsNN(X, NN uint8) {
 	if c.registers[X] == NN {
 		c.pc += 2
+		if c.opcodeAt() == 0xF000 {
+			c.pc += 2
+		}
 	}
 }
 
@@ -114,6 +132,9 @@ func (c *CPU) skipIfVXEqualsNN(X, NN uint8) {
 func (c *CPU) skipIfVXNotEqualsNN(X, NN uint8) {
 	if c.registers[X] != NN {
 		c.pc += 2
+		if c.opcodeAt() == 0xF000 {
+			c.pc += 2
+		}
 	}
 }
 
@@ -121,6 +142,37 @@ func (c *CPU) skipIfVXNotEqualsNN(X, NN uint8) {
 func (c *CPU) skipIfVXEqualsVY(X, Y uint8) {
 	if c.registers[X] == c.registers[Y] {
 		c.pc += 2
+		if c.opcodeAt() == 0xF000 {
+			c.pc += 2
+		}
+	}
+}
+
+// saveVXthroughVY: 5XY2: Save an inclusive range of registers VX to VY in memory starting at I
+func (c *CPU) saveVXthroughVY(X, Y uint8) {
+	registers := gmath.Abs(int(X) - int(Y))
+	if X > Y {
+		for i := 0; i <= registers; i++ {
+			c.memory[c.idx+uint16(i)] = c.registers[X-uint8(i)]
+		}
+	} else {
+		for i := 0; i <= registers; i++ {
+			c.memory[c.idx+uint16(i)] = c.registers[X+uint8(i)]
+		}
+	}
+}
+
+// loadVXthroughVY: 5XY3: Load an inclusive range of registers VX to VY from memory starting at I
+func (c *CPU) loadVXthroughVY(X, Y uint8) {
+	registers := gmath.Abs(int(X) - int(Y))
+	if X > Y {
+		for i := 0; i <= registers; i++ {
+			c.registers[X-uint8(i)] = c.memory[c.idx+uint16(i)]
+		}
+	} else {
+		for i := 0; i <= registers; i++ {
+			c.registers[X+uint8(i)] = c.memory[c.idx+uint16(i)]
+		}
 	}
 }
 
@@ -236,6 +288,9 @@ func (c *CPU) shiftVXLeft(X, Y uint8) {
 func (c *CPU) skipIfVXnotEqualsVY(X, Y uint8) {
 	if c.registers[X] != c.registers[Y] {
 		c.pc += 2
+		if c.opcodeAt() == 0xF000 {
+			c.pc += 2
+		}
 	}
 }
 
@@ -361,20 +416,31 @@ func (c *CPU) drawAt(x, y, scaleFactor int, set uint8) bool {
 	return flip
 }
 
-// skipIfPressed: EX9E: Skips the next instruction if the key stored in VX(only consider the lowest nibble) is pressed
+// skipIfPressed: EX9E: Skips the next instruction if the key stored in VX (only consider the lowest nibble) is pressed
 // (usually the next instruction is a jump to skip a code block)
 func (c *CPU) skipIfPressed(X uint8) {
 	if c.keys[c.registers[X]] {
 		c.pc += 2
+		if c.opcodeAt() == 0xF000 {
+			c.pc += 2
+		}
 	}
 }
 
-// skipIfNotPressed EXA1: Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed
+// skipIfNotPressed EXA1: Skips the next instruction if the key stored in VX (only consider the lowest nibble) is not pressed
 // (usually the next instruction is a jump to skip a code block)
 func (c *CPU) skipIfNotPressed(X uint8) {
 	if !c.keys[c.registers[X]] {
 		c.pc += 2
+		if c.opcodeAt() == 0xF000 {
+			c.pc += 2
+		}
 	}
+}
+
+// loadHiMem: F000 NNNN: Load I with 16-bit address NNNN
+func (c *CPU) loadHiMem(NNNN uint16) {
+	c.idx = NNNN
 }
 
 // SelectPlane: FX01: Select bit planes to draw on
