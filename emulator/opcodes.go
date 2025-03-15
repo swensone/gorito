@@ -15,30 +15,57 @@ func (c *CPU) returnFromSubroutine() {
 // scrollDown: 00CN: Scroll the display down by 0 to 15 pixels
 func (c *CPU) scrollDown(N uint8) {
 	scrollLen := int(c.xres) * int(N)
-	scroll := make([]bool, scrollLen)
-	c.gfx = append(scroll, c.gfx[0:len(c.gfx)-scrollLen]...)
+	scroll := make([]uint8, scrollLen)
+	if c.plane&0x01 > 0 {
+		c.gfxp1 = append(scroll, c.gfxp1[0:len(c.gfxp1)-scrollLen]...)
+	}
+	if c.plane&0x02 > 0 {
+		c.gfxp2 = append(scroll, c.gfxp2[0:len(c.gfxp2)-scrollLen]...)
+	}
 }
 
 // scrollRight: 00FB: Scroll the display right by 4 pixels
 func (c *CPU) scrollRight() {
-	newGfx := []bool{}
-	scroll := make([]bool, 4)
-	for i := range c.yres {
-		newGfx = append(newGfx, scroll...)
-		newGfx = append(newGfx, c.gfx[i*c.xres:(i+1)*c.xres-4]...)
+	if c.plane&0x01 > 0 {
+		newGfx := []uint8{}
+		scroll := make([]uint8, 4)
+		for i := range c.yres {
+			newGfx = append(newGfx, scroll...)
+			newGfx = append(newGfx, c.gfxp1[i*c.xres:(i+1)*c.xres-4]...)
+		}
+		c.gfxp1 = newGfx
 	}
-	c.gfx = newGfx
+	if c.plane&0x02 > 0 {
+		newGfx := []uint8{}
+		scroll := make([]uint8, 4)
+		for i := range c.yres {
+			newGfx = append(newGfx, scroll...)
+			newGfx = append(newGfx, c.gfxp2[i*c.xres:(i+1)*c.xres-4]...)
+		}
+		c.gfxp2 = newGfx
+	}
 }
 
 // scrollLeft: 00FC: Scroll the display left by 4 pixels.
 func (c *CPU) scrollLeft() {
-	newGfx := []bool{}
-	scroll := make([]bool, 4)
-	for i := range c.yres {
-		newGfx = append(newGfx, c.gfx[i*c.xres+4:(i+1)*c.xres]...)
-		newGfx = append(newGfx, scroll...)
+	if c.plane&0x01 > 0 {
+		newGfx := []uint8{}
+		scroll := make([]uint8, 4)
+		for i := range c.yres {
+			newGfx = append(newGfx, c.gfxp1[i*c.xres+4:(i+1)*c.xres]...)
+			newGfx = append(newGfx, scroll...)
+		}
+		c.gfxp1 = newGfx
 	}
-	c.gfx = newGfx
+	if c.plane&0x02 > 0 {
+		newGfx := []uint8{}
+		scroll := make([]uint8, 4)
+		for i := range c.yres {
+			newGfx = append(newGfx, c.gfxp2[i*c.xres+4:(i+1)*c.xres]...)
+			newGfx = append(newGfx, scroll...)
+		}
+		c.gfxp2 = newGfx
+	}
 }
 
 // exitInterpreter: 00FD: Exits the interpreter (superchip extension)
@@ -300,7 +327,7 @@ func (c *CPU) drawSprite(X, Y, N uint8) {
 				}
 			}
 
-			set := (spriteData >> (spriteWidth - 1 - bit) & 0x01) == 1
+			set := uint8(spriteData >> (spriteWidth - 1 - bit) & 0x01)
 			if c.drawAt(posX, posY, scaleFactor, set) {
 				c.registers[0xF] = 0x01
 			}
@@ -309,16 +336,25 @@ func (c *CPU) drawSprite(X, Y, N uint8) {
 	c.drawFlag = true
 }
 
-func (c *CPU) drawAt(x, y, scaleFactor int, set bool) bool {
+func (c *CPU) drawAt(x, y, scaleFactor int, set uint8) bool {
 	flip := false
 	for xoffset := range scaleFactor {
 		for yoffset := range scaleFactor {
 			gfxIdx := (y+yoffset)*int(c.xres) + x + xoffset
 
-			prevSet := c.gfx[gfxIdx]
-			c.gfx[gfxIdx] = prevSet != set
-			if prevSet && set {
-				flip = true
+			if c.plane&0x01 > 0 {
+				prevSet := c.gfxp1[gfxIdx]
+				c.gfxp1[gfxIdx] = prevSet ^ set
+				if prevSet&set == 0x01 {
+					flip = true
+				}
+			}
+			if c.plane&0x02 > 0 {
+				prevSet := c.gfxp2[gfxIdx]
+				c.gfxp2[gfxIdx] = prevSet ^ set
+				if prevSet&set == 0x01 {
+					flip = true
+				}
 			}
 		}
 	}
@@ -339,6 +375,15 @@ func (c *CPU) skipIfNotPressed(X uint8) {
 	if !c.keys[c.registers[X]] {
 		c.pc += 2
 	}
+}
+
+// SelectPlane: FX01: Select bit planes to draw on
+func (c *CPU) SelectPlane(X uint8) {
+	if X > 3 {
+		c.log.Error("SelectPlane passed invalid value for X (must be 0-3)", "X", X)
+		return
+	}
+	c.plane = X
 }
 
 // waitKeyPress: FX0A: A key press is awaited, and then stored in VX (blocking operation, all instruction halted until next

@@ -5,5 +5,5 @@ type Audio interface {
 }
 
 type Display interface {
-	Draw(gfx []bool) error
+	Draw(gfx []uint8) error
 }

@@ -31,7 +31,9 @@ type Config struct {
 	Opcodes    bool          `yaml:"opcodes,omitempty"`
 	Level      *slog.Level   `yaml:"level,omitempty"`
 	BG         *graphics.RGB `yaml:"bg,omitempty"`
-	FG         *graphics.RGB `yaml:"fg,omitempty"`
+	FG1        *graphics.RGB `yaml:"fg1,omitempty"`
+	FG2        *graphics.RGB `yaml:"fg2,omitempty"`
+	FG3        *graphics.RGB `yaml:"fg3,omitempty"`
 }
 
 func Parse() (*Config, error) {
@@ -46,7 +48,9 @@ func Parse() (*Config, error) {
 		"opcodes":    false,
 		"level":      "INFO",
 		"bg":         "080808",
-		"fg":         "52a6c5",
+		"fg1":        "5c8ab6",
+		"fg2":        "b65c5d",
+		"fg3":        "b55cb6",
 	}, "."), nil)
 
 	// Parse command line flags
@@ -65,7 +69,9 @@ func Parse() (*Config, error) {
 	f.BoolP("opcodes", "o", false, "log opcodes, extremely noisy")
 	f.StringP("level", "l", "", "log level")
 	f.String("bg", "", "background color in hex")
-	f.String("fg", "", "foreground color in hex")
+	f.String("fg1", "", "foreground 1 color in hex")
+	f.String("fg2", "", "foreground 2 color in hex, only used in xo-chip")
+	f.String("fg3", "", "foreground 3 color in hex, only used in xo-chip")
 	if err := f.Parse(os.Args[1:]); err != nil {
 		return nil, err
 	}
