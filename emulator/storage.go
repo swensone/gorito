@@ -14,13 +14,13 @@ import (
 	"github.com/swensone/gorito/gmath"
 )
 
-type Storage struct {
+type storage struct {
 	filename string       `json:"-"`
 	log      *slog.Logger `json:"-"`
-	GameData []GameData   `json:"game_data"`
+	GameData []gameData   `json:"game_data"`
 }
 
-type GameData struct {
+type gameData struct {
 	Rom   string    `json:"rom"`
 	Flags [16]uint8 `json:"flags"`
 }
@@ -33,7 +33,7 @@ func RomName(rompath string) string {
 	return rompath
 }
 
-func NewStorage(fpath string, log *slog.Logger) (*Storage, error) {
+func newStorage(fpath string, log *slog.Logger) (*storage, error) {
 	if fpath == "" {
 		fpath = "~/.config/gorito-saves.json"
 	}
@@ -47,7 +47,7 @@ func NewStorage(fpath string, log *slog.Logger) (*Storage, error) {
 	f, err := os.Open(fpath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return &Storage{filename: fpath, log: log}, nil
+			return &storage{filename: fpath, log: log}, nil
 		}
 		return nil, errors.Wrapf(err, "failed to open %s", fpath)
 	}
@@ -57,7 +57,7 @@ func NewStorage(fpath string, log *slog.Logger) (*Storage, error) {
 		return nil, err
 	}
 
-	s := Storage{}
+	s := storage{}
 	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func NewStorage(fpath string, log *slog.Logger) (*Storage, error) {
 	return &s, nil
 }
 
-func (s *Storage) Persist(rom string, flags []uint8) {
+func (s *storage) Persist(rom string, flags []uint8) {
 	for i, g := range s.GameData {
 		if g.Rom == rom {
 			copy(s.GameData[i].Flags[:], flags)
@@ -75,7 +75,7 @@ func (s *Storage) Persist(rom string, flags []uint8) {
 		}
 	}
 
-	g := GameData{Rom: rom}
+	g := gameData{Rom: rom}
 	copy(g.Flags[:], flags)
 
 	s.GameData = append(s.GameData, g)
@@ -85,7 +85,7 @@ func (s *Storage) Persist(rom string, flags []uint8) {
 	}
 }
 
-func (s *Storage) Load(rom string, len int, registers []uint8) {
+func (s *storage) Load(rom string, len int, registers []uint8) {
 	len = gmath.Min(len+1, 16)
 
 	data := make([]uint8, len)
@@ -97,7 +97,7 @@ func (s *Storage) Load(rom string, len int, registers []uint8) {
 	copy(registers, data)
 }
 
-func (s *Storage) Save() error {
+func (s *storage) Save() error {
 	// if there's no data to save, don't save a file
 	if s == nil || len(s.GameData) == 0 {
 		return nil

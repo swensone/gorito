@@ -1,558 +1,206 @@
 package emulator
 
-import (
-	"crypto/rand"
-	"math/big"
+import "fmt"
 
-	"github.com/swensone/gorito/gmath"
-)
+func (e *Emulator) execOpcode() error {
+	// fetch the opcode
+	opcode := e.opcodeAt(e.pc)
+	B1 := uint8(opcode >> 8)
+	B2 := uint8(opcode)
+	N1 := B1 & 0xF0 >> 4
+	N2 := B1 & 0x0F
+	N3 := B2 & 0xF0 >> 4
+	N4 := B2 & 0x0F
+	NNN := opcode & 0x0FFF
 
-// returnFromSubroutine: 00EE: Return from subroutine
-// Return from subroutine. Set the PC to the address at the top of the stack and subtract 1 from the SP.
-func (c *CPU) returnFromSubroutine() {
-	c.pc = c.stack[c.sp]
-	c.sp--
-}
-
-// scrollDown: 00CN: Scroll the display down by 0 to 15 pixels
-func (c *CPU) scrollDown(N uint8) {
-	scrollLen := int(c.xres) * int(N)
-	scroll := make([]uint8, scrollLen)
-	if c.plane&0x01 > 0 {
-		c.gfxp1 = append(scroll, c.gfxp1[0:len(c.gfxp1)-scrollLen]...)
-	}
-	if c.plane&0x02 > 0 {
-		c.gfxp2 = append(scroll, c.gfxp2[0:len(c.gfxp2)-scrollLen]...)
-	}
-}
-
-// scrollUp: 00DN: Scroll the display up by 0 to 15 pixels
-func (c *CPU) scrollUp(N uint8) {
-	scrollLen := int(c.xres) * int(N)
-	scroll := make([]uint8, scrollLen)
-	if c.plane&0x01 > 0 {
-		c.gfxp1 = append(c.gfxp1[len(c.gfxp1)-scrollLen:], scroll...)
-	}
-	if c.plane&0x02 > 0 {
-		c.gfxp2 = append(c.gfxp2[len(c.gfxp2)-scrollLen:], scroll...)
-
-	}
-}
-
-// scrollRight: 00FB: Scroll the display right by 4 pixels
-func (c *CPU) scrollRight() {
-	if c.plane&0x01 > 0 {
-		newGfx := []uint8{}
-		scroll := make([]uint8, 4)
-		for i := range c.yres {
-			newGfx = append(newGfx, scroll...)
-			newGfx = append(newGfx, c.gfxp1[i*c.xres:(i+1)*c.xres-4]...)
-		}
-		c.gfxp1 = newGfx
-	}
-	if c.plane&0x02 > 0 {
-		newGfx := []uint8{}
-		scroll := make([]uint8, 4)
-		for i := range c.yres {
-			newGfx = append(newGfx, scroll...)
-			newGfx = append(newGfx, c.gfxp2[i*c.xres:(i+1)*c.xres-4]...)
-		}
-		c.gfxp2 = newGfx
-	}
-}
-
-// scrollLeft: 00FC: Scroll the display left by 4 pixels.
-func (c *CPU) scrollLeft() {
-	if c.plane&0x01 > 0 {
-		newGfx := []uint8{}
-		scroll := make([]uint8, 4)
-		for i := range c.yres {
-			newGfx = append(newGfx, c.gfxp1[i*c.xres+4:(i+1)*c.xres]...)
-			newGfx = append(newGfx, scroll...)
-		}
-		c.gfxp1 = newGfx
-	}
-	if c.plane&0x02 > 0 {
-		newGfx := []uint8{}
-		scroll := make([]uint8, 4)
-		for i := range c.yres {
-			newGfx = append(newGfx, c.gfxp2[i*c.xres+4:(i+1)*c.xres]...)
-			newGfx = append(newGfx, scroll...)
-		}
-		c.gfxp2 = newGfx
-	}
-}
-
-// exitInterpreter: 00FD: Exits the interpreter (superchip extension)
-func (c *CPU) exitInterpreter() {
-	c.finished = true
-}
-
-// disableHiRes: 00FE: Disable high-resolution mode
-func (c *CPU) disableHiRes() {
-	c.hires = false
-}
-
-// enableHiRes: 00FF: Enable high-resolution mode
-func (c *CPU) enableHiRes() {
-	c.hires = true
-}
-
-// jumpToNNN: 1NNN: Jumps to address NNN
-// set PC to NNN
-func (c *CPU) jumpToNNN(NNN uint16) {
-	c.pc = NNN
-	c.pc -= 2
-}
-
-// callNNN: 2NNN: Call subroutine at NNN
-// Increment the SP and put the current PC value on the top of the stack. Then set the PC to NNN. Generally there is a limit of 16 successive calls.
-func (c *CPU) callNNN(NNN uint16) {
-	c.sp++
-	if len(c.stack) <= int(c.sp) {
-		panic("stack overflow")
+	if e.cfg.LogOpcodes {
+		e.log.Debug("running opcode",
+			"opcode", fmt.Sprintf("%04X", opcode),
+			"vx", fmt.Sprintf("%02d", e.registers[N2]),
+			"vy", fmt.Sprintf("%02d", e.registers[N3]),
+			"vf", fmt.Sprintf("%02d", e.registers[0xF]),
+			"pc", fmt.Sprintf("%02X", e.pc),
+			"idx", fmt.Sprintf("%02X", e.idx),
+			"sp", fmt.Sprintf("%02X", e.sp),
+			"timer", e.timer)
 	}
 
-	c.stack[c.sp] = c.pc
-	c.pc = NNN
-	c.pc -= 2
-}
-
-// skipIfVXEqual: 3XNN: Skips the next instruction if VX equals NN
-func (c *CPU) skipIfVXEqualsNN(X, NN uint8) {
-	if c.registers[X] == NN {
-		c.pc += 2
-		if c.opcodeAt(c.pc) == 0xF000 {
-			c.pc += 2
-		}
-	}
-}
-
-// skipIfVXNotEqual: 4XNN: Skips the next instruction if VX does not equal NN
-func (c *CPU) skipIfVXNotEqualsNN(X, NN uint8) {
-	if c.registers[X] != NN {
-		c.pc += 2
-		if c.opcodeAt(c.pc) == 0xF000 {
-			c.pc += 2
-		}
-	}
-}
-
-// skipIfVXEqualsVY: 5XY0: Skips the next instruction if VX equals VY
-func (c *CPU) skipIfVXEqualsVY(X, Y uint8) {
-	if c.registers[X] == c.registers[Y] {
-		c.pc += 2
-		if c.opcodeAt(c.pc) == 0xF000 {
-			c.pc += 2
-		}
-	}
-}
-
-// saveVXthroughVY: 5XY2: Save an inclusive range of registers VX to VY in memory starting at I
-func (c *CPU) saveVXthroughVY(X, Y uint8) {
-	registers := gmath.Abs(int(X) - int(Y))
-	if X > Y {
-		for i := 0; i <= registers; i++ {
-			c.memory[c.idx+uint16(i)] = c.registers[X-uint8(i)]
-		}
+	if B1 == 0x00 && N3 == 0xc {
+		// 00CN: Scroll the display down by 0 to 15 pixels
+		e.scrollDown(N4)
+	} else if B1 == 0x00 && N3 == 0xd {
+		// 00DN: Scroll the display up by 0 to 15 pixels
+		e.scrollUp(N4)
+	} else if opcode == 0x00FB {
+		// 00FB Scroll the display right by 4 pixels
+		e.scrollRight()
+	} else if opcode == 0x00FC {
+		// 00FC: Scroll the display left by 4 pixels.
+		e.scrollLeft()
+	} else if opcode == 0x00e0 {
+		// 00E0: clear display
+		e.clearDisplay()
+	} else if opcode == 0x00ee {
+		// 00EE: Return from subroutine
+		e.returnFromSubroutine()
+	} else if opcode == 0x00fd {
+		// 00FD: Exit interpreter (superchip extension)
+		e.exitInterpreter()
+	} else if opcode == 0x00fe {
+		// 00FE: Disable high-resolution mode (superchip extension)
+		e.disableHiRes()
+	} else if opcode == 0x00ff {
+		// 00FF: Enable high-resolution mode (superchip extension)
+		e.enableHiRes()
+	} else if N1 == 0x1 {
+		// 1NNN: Jumps to address NNN
+		e.jumpToNNN(NNN)
+	} else if N1 == 0x2 {
+		// 2NNN: Calls subroutine at NNN
+		e.callNNN(NNN)
+	} else if N1 == 0x3 {
+		// 3XNN: Skips the next instruction if VX equals NN
+		e.skipIfVXEqualsNN(N2, B2)
+	} else if N1 == 0x4 {
+		// 4XNN: Skips the next instruction if VX does not equal NN
+		e.skipIfVXNotEqualsNN(N2, B2)
+	} else if N1 == 0x5 && N4 == 0x0 {
+		// 5XY0: Skips the next instruction if VX equals VY
+		e.skipIfVXEqualsVY(N2, N3)
+	} else if N1 == 0x5 && N4 == 0x2 {
+		// 5XY2: Save an inclusive range of registers VX to VY in memory starting at idx
+		e.saveVXthroughVY(N2, N3)
+	} else if N1 == 0x5 && N4 == 0x3 {
+		// 5XY3: Load an inclusive range of registers VX to VY from memory starting at idx
+		e.loadVXthroughVY(N2, N3)
+	} else if N1 == 0x6 {
+		// 6XNN: Sets VX to NN
+		e.setVXtoNN(N2, B2)
+	} else if N1 == 0x7 {
+		// 7XNN: Adds NN to VX (carry flag is not changed)
+		e.addNNtoVX(N2, B2)
+	} else if N1 == 0x8 && N4 == 0x0 {
+		// 8XY0: Sets VX to the value of VY
+		e.setVXtoVY(N2, N3)
+	} else if N1 == 0x8 && N4 == 0x1 {
+		// 8XY1: Sets VX to VX or VY (bitwise OR operation)
+		e.setVXtoVXorVY(N2, N3)
+	} else if N1 == 0x8 && N4 == 0x2 {
+		// 8XY2: Sets VX to VX and VY (bitwise AND operation)
+		e.setVXtoVXandVY(N2, N3)
+	} else if N1 == 0x8 && N4 == 0x3 {
+		// 8XY3: Sets VX to VX xor VY (bitwise XOR operation)
+		e.setVXtoVXxorVY(N2, N3)
+	} else if N1 == 0x8 && N4 == 0x4 {
+		// 8XY4: Adds VY to VX, VF is set to 1 when there's an overflow, and to 0 when there is not
+		e.addVYtoVX(N2, N3)
+	} else if N1 == 0x8 && N4 == 0x5 {
+		// 8XY5: VY is subtracted from VX, VF is set to 0 when there's an underflow, and 1 when there is not (i.e. VF
+		// set to 1 if VX >= VY and 0 if not)
+		e.subVYFromVX(N2, N3)
+	} else if N1 == 0x8 && N4 == 0x6 {
+		// 8XY6: Shifts VX to the right by 1, then stores the least significant bit of VX prior to the shift into VF
+		e.shiftVXRight(N2, N3)
+	} else if N1 == 0x8 && N4 == 0x7 {
+		// 8XY7: Sets VX to VY minus VX. VF is set to 0 when there's an underflow, and 1 when there is not. (i.e. VF
+		// set to 1 if VY >= VX)
+		e.subVXFromVY(N2, N3)
+	} else if N1 == 0x8 && N4 == 0xe {
+		// 8XYE: Shifts VX to the left by 1, then sets VF to 1 if the most significant bit of VX prior to that shift
+		// was set, or to 0 if it was unset.
+		e.shiftVXLeft(N2, N3)
+	} else if N1 == 0x9 && N4 == 0x0 {
+		// 9XY0: Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a
+		// code block).
+		e.skipIfVXnotEqualsVY(N2, N3)
+	} else if N1 == 0xA {
+		// ANNN: Sets idx to the address NNN
+		e.setItoNNN(NNN)
+	} else if N1 == 0xB {
+		// BNNN: Jumps to the address NNN plus V0
+		e.jumpToNNNplusV0(N2, NNN)
+	} else if N1 == 0xC {
+		// CXNN: Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
+		e.setVXtoNNNandRand(N2, B2)
+	} else if N1 == 0xD {
+		// DXYN: Draws a sprite at coordinate (VX, VN3) that has a width of 8 pixels and a height of N pixels.
+		// Each row of 8 pixels is read as bit-coded starting from memory location idx ; idx  value does not change
+		// after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are
+		// flipped from set to unset when the sprite is drawn, and to 0 if that does not happen.
+		e.drawSprite(N2, N3, N4)
+	} else if N1 == 0xE && B2 == 0x9E {
+		// EX9E: Skips the next instruction if the key stored in VX(only consider the lowest nibble) is pressed
+		// (usually the next instruction is a jump to skip a code block)
+		e.skipIfPressed(N2)
+	} else if N1 == 0xE && B2 == 0xA1 {
+		// EXA1: Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed
+		// (usually the next instruction is a jump to skip a code block)
+		e.skipIfNotPressed(N2)
+	} else if opcode == 0xF000 {
+		// F000: Load the next two bytes into idx
+		e.loadHiMem(e.opcodeAt(e.pc + 2))
+	} else if opcode == 0xF002 {
+		// F002: Store 16 bytes starting at idx in the audio pattern buffer
+		e.loadAudioPattern()
+	} else if N1 == 0xF && B2 == 0x01 {
+		// FX01: Select bit planes to draw on
+		e.selectPlane(N2)
+	} else if N1 == 0xF && B2 == 0x07 {
+		// FX07: Sets VX to the value of the delay timer.
+		e.setVXToDelay(N2)
+	} else if N1 == 0xF && B2 == 0x0A {
+		// FX0A: A key press is awaited, and then stored in VX (blocking operation, all instruction halted until next
+		// key event, delay and sound timers should continue processing)
+		e.waitKeyPress(N2)
+	} else if N1 == 0xF && B2 == 0x15 {
+		// FX15: Sets the delay timer to VX.
+		e.setDelayTimerToVX(N2)
+	} else if N1 == 0xF && B2 == 0x18 {
+		// FX18: Sets the sound timer to VX.
+		e.setSoundTimerToVX(N2)
+	} else if N1 == 0xF && B2 == 0x1E {
+		// FX1E: Adds VX to idx. VF is not affected.
+		e.addVXtoI(N2)
+	} else if N1 == 0xF && B2 == 0x29 {
+		// FX29: Sets idx to the location of the sprite for the character in VX (only consider the lowest nibble).
+		// Characters 0-F (in hexadecimal) are represented by a 4x5 font.
+		e.setItoChar(N2)
+	} else if N1 == 0xF && B2 == 0x3A {
+		// FX3A: Set the audio pattern playback rate to 4000*2^((vx-64)/48)Hz
+		e.setAudioPitch(N2)
+	} else if N1 == 0xF && B2 == 0x30 {
+		// FX30: Sets idx to the location of the sprite for the character in VX (only consider the lowest nibble).
+		// Characters 0-9 are represented by a 8x10 font.
+		e.setItoHiresChar(N2)
+	} else if N1 == 0xF && B2 == 0x33 {
+		// FX33: Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location
+		// in idx , the tens digit at location idx+1, and the ones digit at location idx+2.
+		e.storeVXatIinBCD(N2)
+	} else if N1 == 0xF && B2 == 0x55 {
+		// FX55: Stores from V0 to VX (including VX) in memory, starting at address idx. The offset from idx  is increased by 1
+		// for each value written, but idx  itself is left unmodified.[d][24]
+		e.storeRegistersInMemory(N2)
+	} else if N1 == 0xF && B2 == 0x65 {
+		// FX65: Fills from V0 to VX (including VX) with values from memory, starting at address idx. The offset from idx
+		// is increased by 1 for each value read, but idx  itself is left unmodified.
+		e.storeMemInRegisters(N2)
+	} else if N1 == 0xF && B2 == 0x75 {
+		// FX75: Store V0..VX in RPL user flags (X <= 7 if superchip, X <= 16 if xo-chip)
+		e.storeRegistersToStorage(N2)
+	} else if N1 == 0xF && B2 == 0x85 {
+		// FX85: Read V0..VX from RPL user flags (X <= 7 if superchip, X <= 16 if xo-chip)
+		e.loadRegistersFromStorage(N2)
 	} else {
-		for i := 0; i <= registers; i++ {
-			c.memory[c.idx+uint16(i)] = c.registers[X+uint8(i)]
-		}
-	}
-}
-
-// loadVXthroughVY: 5XY3: Load an inclusive range of registers VX to VY from memory starting at I
-func (c *CPU) loadVXthroughVY(X, Y uint8) {
-	registers := gmath.Abs(int(X) - int(Y))
-	if X > Y {
-		for i := 0; i <= registers; i++ {
-			c.registers[X-uint8(i)] = c.memory[c.idx+uint16(i)]
-		}
-	} else {
-		for i := 0; i <= registers; i++ {
-			c.registers[X+uint8(i)] = c.memory[c.idx+uint16(i)]
-		}
-	}
-}
-
-// setVXtoNN: 6XNN: Sets VX to NN
-func (c *CPU) setVXtoNN(X, NN uint8) {
-	c.registers[X] = NN
-}
-
-// addNNtoVX: 7XNN: Adds NN to VX (carry flag is not changed)
-func (c *CPU) addNNtoVX(X, NN uint8) {
-	c.registers[X] += NN
-}
-
-// setVXtoVY: 8XY0: Sets VX to the value of VY
-func (c *CPU) setVXtoVY(X, Y uint8) {
-	c.registers[X] = c.registers[Y]
-}
-
-// setVXtoVXorVY: 8XY1: Sets VX to VX or VY (bitwise OR operation)
-func (c *CPU) setVXtoVXorVY(X, Y uint8) {
-	c.registers[X] |= c.registers[Y]
-
-	// handle VF reset quirk
-	if c.mode == MODE_CHIP8 {
-		c.registers[0xF] = 0
-	}
-}
-
-// setVXtoVXandVY: 8XY2: Sets VX to VX and VY (bitwise AND operation)
-func (c *CPU) setVXtoVXandVY(X, Y uint8) {
-	c.registers[X] &= c.registers[Y]
-
-	// handle VF reset quirk
-	if c.mode == MODE_CHIP8 {
-		c.registers[0xF] = 0
-	}
-}
-
-// setVXtoVXxorVY: 8XY3: Sets VX to VX xor VY (bitwise XOR operation)
-func (c *CPU) setVXtoVXxorVY(X, Y uint8) {
-	c.registers[X] ^= c.registers[Y]
-
-	// handle VF reset quirk
-	if c.mode == MODE_CHIP8 {
-		c.registers[0xF] = 0
-	}
-}
-
-// addVYtoVX: 8XY4: Adds VY to VX, VF is set to 1 when there's an overflow, and to 0 when there is not
-func (c *CPU) addVYtoVX(X, Y uint8) {
-	VX := c.registers[X]
-	VY := c.registers[Y]
-	res := uint16(VX) + uint16(VY)
-	c.registers[X] = uint8(res)
-
-	c.registers[0xF] = uint8(res >> 8)
-}
-
-// subVYFromVX: 8XY5: VY is subtracted from VX, VF is set to 0 when there's an underflow, and 1 when there is not (i.e. VF
-// set to 1 if VX >= VY and 0 if not)
-func (c *CPU) subVYFromVX(X, Y uint8) {
-	VX := c.registers[X]
-	VY := c.registers[Y]
-	res := uint16(VX) - uint16(VY)
-	c.registers[X] = uint8(res)
-
-	if VX >= VY {
-		c.registers[0xF] = 0x01
-	} else {
-		c.registers[0xF] = 0x00
-	}
-}
-
-// shiftVXRight: 8XY6: Shifts VX to the right by 1, then stores the least significant bit of VX prior to the shift into VF
-func (c *CPU) shiftVXRight(X, Y uint8) {
-	VX := c.registers[X]
-	if c.mode != MODE_SUPERCHIP {
-		c.registers[X] = c.registers[Y]
-	}
-	c.registers[X] = c.registers[X] >> 1
-
-	c.registers[0xF] = VX & 0x01
-}
-
-// subVXFromVY: 8XY7: Sets VX to VY minus VX. VF is set to 0 when there's an underflow, and 1 when there is not. (i.e. VF
-// set to 1 if VY >= VX)
-func (c *CPU) subVXFromVY(X, Y uint8) {
-	VX := c.registers[X]
-	VY := c.registers[Y]
-	res := uint16(VY) - uint16(VX)
-	c.registers[X] = uint8(res)
-
-	if VY >= VX {
-		c.registers[0xF] = 0x01
-	} else {
-		c.registers[0xF] = 0x00
-	}
-}
-
-// shiftVXLeft: 8XYE: Shifts VX to the left by 1, then sets VF to 1 if the most significant bit of VX prior to that shift
-// was set, or to 0 if it was unset.
-func (c *CPU) shiftVXLeft(X, Y uint8) {
-	VX := c.registers[X]
-	if c.mode != MODE_SUPERCHIP {
-		c.registers[X] = c.registers[Y]
-	}
-	c.registers[X] = c.registers[X] << 1
-	c.registers[0xF] = (0x80 & VX) >> 7
-}
-
-// skipIfVXnotEqualsVY: 9XY0: Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a
-// code block).
-func (c *CPU) skipIfVXnotEqualsVY(X, Y uint8) {
-	if c.registers[X] != c.registers[Y] {
-		c.pc += 2
-		if c.opcodeAt(c.pc) == 0xF000 {
-			c.pc += 2
-		}
-	}
-}
-
-// setItoNNN: ANNN: Sets I to the address NNN
-func (c *CPU) setItoNNN(NNN uint16) {
-	c.idx = NNN
-}
-
-// jumpToNNNplusV0: BNNN: Jumps to the address NNN plus V0
-// superChip works as BXNN: It will jump to the address XNN, plus the value in the register VX
-func (c *CPU) jumpToNNNplusV0(X uint8, NNN uint16) {
-	if c.mode != MODE_SUPERCHIP {
-		X = 0
-	}
-	c.pc = uint16(c.registers[X]) + NNN
-	c.pc -= 2
-}
-
-// setVXtoNNandRand CXNN: Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
-func (c *CPU) setVXtoNNNandRand(X, NN uint8) {
-	r, err := rand.Int(rand.Reader, big.NewInt(255))
-	if err != nil {
-		panic(err)
-	}
-	c.registers[X] = uint8(r.Int64()) & NN
-}
-
-// drawSprite: DXYN: Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels.
-// Each row of 8 pixels is read as bit-coded starting from memory location I; I value does not change after the
-// execution of this instruction. As described above, VF is set to 1 if any screen pixels are flipped from set to
-// unset when the sprite is drawn, and to 0 if that does not happen.
-func (c *CPU) drawSprite(X, Y, N uint8) {
-	xres := int(c.xres)
-	yres := int(c.yres)
-	// handle display wait quirk
-	if c.mode == MODE_CHIP8 {
-		if c.counter%4 != 0 {
-			c.pc -= 2
-			return
-		}
+		e.log.Error("bad opcode: unable to interpret opcode", "opcode", fmt.Sprintf("%04X", opcode))
 	}
 
-	spriteWidth := 8
-	spriteHeight := int(N)
-	if c.hires && N == 0 {
-		spriteWidth = 16
-		spriteHeight = 16
-	}
-
-	scaleFactor := 2
-	if c.hires {
-		scaleFactor = 1
-	}
-
-	VX := int(c.registers[X]) * scaleFactor
-	VY := int(c.registers[Y]) * scaleFactor
-	if c.mode != MODE_XOCHIP {
-		if VX >= xres {
-			VX = VX % xres
-		}
-		if VY >= yres {
-			VY = VY % yres
-		}
-	}
-
-	offset := c.idx
-	c.registers[0xF] = 0x00
-	for i := range spriteHeight {
-		spriteData := uint16(c.memory[offset])
-		offset++
-		if spriteWidth == 16 {
-			spriteData = spriteData<<8 | uint16(c.memory[offset])
-			offset++
-		}
-
-		for bit := range spriteWidth {
-			posX := VX + bit*scaleFactor
-			posY := VY + i*scaleFactor
-
-			if c.mode == MODE_XOCHIP {
-				posX = posX % int(xres)
-				posY = posY % int(yres)
-			} else {
-				if posX < 0 || posX >= int(xres) {
-					continue
-				}
-				if posY < 0 || posY >= int(yres) {
-					continue
-				}
-			}
-
-			set := uint8(spriteData >> (spriteWidth - 1 - bit) & 0x01)
-			if c.drawAt(posX, posY, scaleFactor, set) {
-				c.registers[0xF] = 0x01
-			}
-		}
-	}
-	c.drawFlag = true
+	// increment the program counter by two bytes
+	e.pc += 2
+	e.counter++
+	return nil
 }
 
-func (c *CPU) drawAt(x, y, scaleFactor int, set uint8) bool {
-	flip := false
-	for xoffset := range scaleFactor {
-		for yoffset := range scaleFactor {
-			gfxIdx := (y+yoffset)*int(c.xres) + x + xoffset
-
-			if c.plane&0x01 > 0 {
-				prevSet := c.gfxp1[gfxIdx]
-				c.gfxp1[gfxIdx] = prevSet ^ set
-				if prevSet&set == 0x01 {
-					flip = true
-				}
-			}
-			if c.plane&0x02 > 0 {
-				prevSet := c.gfxp2[gfxIdx]
-				c.gfxp2[gfxIdx] = prevSet ^ set
-				if prevSet&set == 0x01 {
-					flip = true
-				}
-			}
-		}
-	}
-	return flip
-}
-
-// skipIfPressed: EX9E: Skips the next instruction if the key stored in VX (only consider the lowest nibble) is pressed
-// (usually the next instruction is a jump to skip a code block)
-func (c *CPU) skipIfPressed(X uint8) {
-	if c.keys[c.registers[X]] {
-		c.pc += 2
-		if c.opcodeAt(c.pc) == 0xF000 {
-			c.pc += 2
-		}
-	}
-}
-
-// skipIfNotPressed EXA1: Skips the next instruction if the key stored in VX (only consider the lowest nibble) is not pressed
-// (usually the next instruction is a jump to skip a code block)
-func (c *CPU) skipIfNotPressed(X uint8) {
-	if !c.keys[c.registers[X]] {
-		c.pc += 2
-		if c.opcodeAt(c.pc) == 0xF000 {
-			c.pc += 2
-		}
-	}
-}
-
-// loadHiMem: F000 NNNN: Load I with 16-bit address NNNN
-func (c *CPU) loadHiMem(NNNN uint16) {
-	c.pc += 2
-	c.idx = NNNN
-}
-
-// SelectPlane: FX01: Select bit planes to draw on
-func (c *CPU) SelectPlane(X uint8) {
-	if X > 3 {
-		c.log.Error("SelectPlane passed invalid value for X (must be 0-3)", "X", X)
-		return
-	}
-	c.plane = X
-}
-
-// waitKeyPress: FX0A: A key press is awaited, and then stored in VX (blocking operation, all instruction halted until next
-// key event, delay and sound timers should continue processing)
-func (c *CPU) waitKeyPress(X uint8) {
-	for i := range c.keys {
-		if c.prevKeys[i] && !c.keys[i] {
-			c.registers[X] = uint8(i)
-			return
-		}
-	}
-	c.pc -= 2
-}
-
-// setVXToDelay: FX07: Sets VX to the value of the delay timer.
-func (c *CPU) setVXToDelay(X uint8) {
-	c.registers[X] = c.delayTimer
-}
-
-// setDelayTimerToVX: FX15: Sets the delay timer to VX.
-func (c *CPU) setDelayTimerToVX(X uint8) {
-	c.delayTimer = c.registers[X]
-}
-
-// setSoundTimerToVX: FX18: Sets the sound timer to VX.
-func (c *CPU) setSoundTimerToVX(X uint8) {
-	c.soundTimer = c.registers[X]
-}
-
-// addVXtoI: FX1E: Adds VX to I. VF is not affected.
-func (c *CPU) addVXtoI(X uint8) {
-	c.idx += uint16(c.registers[X])
-}
-
-// setItoChar: FX29: Sets I to the location of the sprite for the character in VX (only consider the lowest nibble).
-// Characters 0-F (in hexadecimal) are represented by a 4x5 font.
-func (c *CPU) setItoChar(X uint8) {
-	c.idx = FONT_OFFSET + uint16(c.registers[X])*5
-}
-
-// setItoHiresChar: FX30: Sets I to the location of the sprite for the character in VX (only consider the lowest nibble).
-// Characters 0-9 are represented by a 8x10 font.
-func (c *CPU) setItoHiresChar(X uint8) {
-	c.idx = SUPERCHIP_FONT_OFFSET + uint16(c.registers[X])*10
-}
-
-// storeVXatIinBCD: FX33: Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location
-// in I, the tens digit at location I+1, and the ones digit at location I+2.
-func (c *CPU) storeVXatIinBCD(X uint8) {
-	vx := c.registers[X]
-	for i := range 3 {
-		c.memory[c.idx+2-uint16(i)] = vx % 10
-		vx = vx / 10
-	}
-}
-
-// storeRegistersInMemory: FX55: Stores from V0 to VX (including VX) in memory, starting at address I. The offset from I is increased by 1
-// for each value written, but I itself is left unmodified.[d][24]
-func (c *CPU) storeRegistersInMemory(X uint8) {
-	for i := range X + 1 {
-		c.memory[c.idx+uint16(i)] = c.registers[i]
-	}
-
-	// handle memory quirk
-	if c.mode != MODE_SUPERCHIP {
-		c.idx += (uint16(X) + 1)
-	}
-}
-
-// storeMemInRegisters: FX65: Fills from V0 to VX (including VX) with values from memory, starting at address I. The offset from I
-// is increased by 1 for each value read, but I itself is left unmodified.
-func (c *CPU) storeMemInRegisters(X uint8) {
-	for i := range X + 1 {
-		c.registers[i] = c.memory[c.idx+uint16(i)]
-	}
-
-	// handle memory quirk
-	if c.mode != MODE_SUPERCHIP {
-		c.idx += (uint16(X) + 1)
-	}
-}
-
-// storeRegistersToStorage: FX75: Store V0..VX in RPL user flags (X <= 7 if superchip, X <= 16 if xo-chip)
-func (c *CPU) storeRegistersToStorage(X uint8) {
-	c.log.Debug("storeRegistersToStorag", "X", X)
-	if c.mode == MODE_CHIP8 {
-		return
-	} else if c.mode == MODE_SUPERCHIP && X > 7 {
-		X = 7
-	}
-
-	c.storage.Persist(c.rom, c.registers[:int(X)+1])
-}
-
-// loadRegistersFromStorage: FX85: Read V0..VX from RPL user flags (X <= 7 if superchip, X <= 16 if xo-chip)
-func (c *CPU) loadRegistersFromStorage(X uint8) {
-	c.log.Debug("loadRegistersFromStorage", "X", X)
-	if c.mode == MODE_CHIP8 {
-		return
-	} else if c.mode == MODE_SUPERCHIP && X > 7 {
-		X = 7
-	}
-
-	c.storage.Load(c.rom, int(X), c.registers)
+func (e *Emulator) opcodeAt(pc uint16) uint16 {
+	opcode := uint16(e.memory[pc])<<8 | uint16(e.memory[pc+1])
+	return opcode
 }

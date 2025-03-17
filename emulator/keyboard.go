@@ -33,27 +33,27 @@ var keymap = map[int]int{
 	sdl.SCANCODE_V: 0xF, // map key V to F
 }
 
-func (c *CPU) setKeys() {
-	copy(c.prevKeys[:], c.keys[:])
+func (e *Emulator) setKeys() {
+	copy(e.prevKeys[:], e.keys[:])
 
 	for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 		switch ke := event.(type) {
 		case *sdl.KeyboardEvent:
 			if ke.Type == sdl.KEYUP && ke.Keysym.Scancode == sdl.SCANCODE_P {
-				c.paused = !c.paused
+				e.paused = !e.paused
 			}
 		case *sdl.QuitEvent:
-			c.finished = true
+			e.finished = true
 		}
 	}
 
 	keyState := sdl.GetKeyboardState()
 
 	for key, mapped := range keymap {
-		c.keys[mapped] = keyState[key] == 1
+		e.keys[mapped] = keyState[key] == 1
 	}
 
 	if keyState[sdl.SCANCODE_ESCAPE] == 1 {
-		c.finished = true
+		e.finished = true
 	}
 }

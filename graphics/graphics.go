@@ -7,6 +7,7 @@ import (
 
 	"github.com/swensone/gorito/emulator"
 	"github.com/swensone/gorito/gmath"
+	"github.com/swensone/gorito/types"
 )
 
 type Graphics struct {
@@ -20,17 +21,17 @@ type Graphics struct {
 	pixelSize    int32
 	xOffset      int32
 	yOffset      int32
-	colormap     map[uint8]*RGB
+	bgColor      types.Color
 }
 
-func New(name string, windowwidth, windowheight int32, fullscreen bool, mode emulator.Mode, colormap map[uint8]*RGB) (*Graphics, error) {
+func New(name string, windowwidth, windowheight int32, fullscreen bool, bgColor types.Color) (*Graphics, error) {
 	flags := uint32(sdl.WINDOW_SHOWN)
 	if fullscreen {
 		res := screenresolution.GetPrimary()
 		windowwidth = int32(res.Width)
 		windowheight = int32(res.Height)
 
-		flags = flags | sdl.WINDOW_FULLSCREEN
+		flags = flags | sdl.WINDOW_FULLSCREEN_DESKTOP
 	}
 
 	window, err := sdl.CreateWindow(name, sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, windowwidth, windowheight, flags)
@@ -39,15 +40,24 @@ func New(name string, windowwidth, windowheight int32, fullscreen bool, mode emu
 	}
 	w, h := window.GetSize()
 
-	renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED)
+	renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED|sdl.RENDERER_PRESENTVSYNC)
 	if err != nil {
 		return nil, err
 	}
-	renderer.Clear()
+
+	if err := renderer.SetDrawColor(bgColor.R, bgColor.G, bgColor.B, 255); err != nil {
+		return nil, err
+	}
+
+	if err := renderer.Clear(); err != nil {
+		return nil, err
+	}
+
+	renderer.Present()
 
 	// determine the pixel size based on the max square that will fit in both
 	// screen directions, and center it in both directions
-	screenWidth, screenHeight := emulator.GetRes(mode)
+	screenWidth, screenHeight := emulator.XRES, emulator.YRES
 	pixelSize := gmath.Min(w/screenWidth, h/screenHeight)
 	xoffset := (w - pixelSize*screenWidth) / 2
 	yoffset := (h - pixelSize*screenHeight) / 2
@@ -59,7 +69,7 @@ func New(name string, windowwidth, windowheight int32, fullscreen bool, mode emu
 		screenHeight: screenHeight,
 		windowWidth:  w,
 		windowHeight: h,
-		colormap:     colormap,
+		bgColor:      bgColor,
 		pixelSize:    pixelSize,
 		xOffset:      xoffset,
 		yOffset:      yoffset,
@@ -79,12 +89,10 @@ func (g *Graphics) Close() error {
 	return merr.ErrorOrNil()
 }
 
-func (g *Graphics) Draw(gfx []uint8) error {
-	// clear the screen with the background color (color 0)
-	if err := g.renderer.SetDrawColor(g.colormap[0].R, g.colormap[0].G, g.colormap[0].B, 255); err != nil {
+func (g *Graphics) Draw(gfx []types.Color) error {
+	if err := g.renderer.SetDrawColor(g.bgColor.R, g.bgColor.G, g.bgColor.B, 255); err != nil {
 		return err
 	}
-
 	if err := g.renderer.Clear(); err != nil {
 		return err
 	}
@@ -93,22 +101,19 @@ func (g *Graphics) Draw(gfx []uint8) error {
 	idx := 0
 	for y := range g.screenHeight {
 		for x := range g.screenWidth {
-			if gfx[idx] > 0 {
-				color, ok := g.colormap[gfx[idx]]
-				if ok {
-					if err := g.renderer.SetDrawColor(color.R, color.G, color.B, 255); err != nil {
-						return err
-					}
-					if err := g.renderer.FillRect(&sdl.Rect{
-						X: g.xOffset + x*g.pixelSize,
-						Y: g.yOffset + y*g.pixelSize,
-						W: g.pixelSize,
-						H: g.pixelSize,
-					}); err != nil {
-						return err
-					}
-				}
+			if err := g.renderer.SetDrawColor(gfx[idx].R, gfx[idx].G, gfx[idx].B, 255); err != nil {
+				return err
 			}
+
+			if err := g.renderer.FillRect(&sdl.Rect{
+				X: g.xOffset + x*g.pixelSize,
+				Y: g.yOffset + y*g.pixelSize,
+				W: g.pixelSize,
+				H: g.pixelSize,
+			}); err != nil {
+				return err
+			}
+
 			idx++
 		}
 	}

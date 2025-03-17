@@ -1,4 +1,4 @@
-package emulator
+package types
 
 import (
 	"strings"
@@ -63,8 +63,4 @@ func (m *Mode) UnmarshalJSON(data []byte) error {
 
 func (m *Mode) MarshalJSON() ([]byte, error) {
 	return []byte("\"" + m.String() + "\""), nil
-}
-
-func GetRes(m Mode) (int32, int32) {
-	return 128, 64
 }
