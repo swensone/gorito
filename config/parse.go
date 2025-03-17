@@ -18,22 +18,22 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
 
-	"github.com/swensone/gorito/emulator"
-	"github.com/swensone/gorito/graphics"
+	"github.com/swensone/gorito/types"
 )
 
 type Config struct {
-	Mode       emulator.Mode `yaml:"mode,omitempty"`
-	ROM        string        `yaml:"rom,omitempty"`
-	Width      int32         `yaml:"width,omitempty"`
-	Height     int32         `yaml:"height,omitempty"`
-	Fullscreen bool          `yaml:"fullscreen,omitempty"`
-	Opcodes    bool          `yaml:"opcodes,omitempty"`
-	Level      *slog.Level   `yaml:"level,omitempty"`
-	BG         *graphics.RGB `yaml:"bg,omitempty"`
-	FG1        *graphics.RGB `yaml:"fg1,omitempty"`
-	FG2        *graphics.RGB `yaml:"fg2,omitempty"`
-	FG3        *graphics.RGB `yaml:"fg3,omitempty"`
+	Mode       types.Mode  `yaml:"mode,omitempty"`
+	Speed      uint32      `yaml:"speed,omitempty"`
+	ROM        string      `yaml:"rom,omitempty"`
+	Width      int32       `yaml:"width,omitempty"`
+	Height     int32       `yaml:"height,omitempty"`
+	Fullscreen bool        `yaml:"fullscreen,omitempty"`
+	Opcodes    bool        `yaml:"opcodes,omitempty"`
+	Level      slog.Level  `yaml:"level,omitempty"`
+	BG         types.Color `yaml:"bg,omitempty"`
+	FG1        types.Color `yaml:"fg1,omitempty"`
+	FG2        types.Color `yaml:"fg2,omitempty"`
+	FG3        types.Color `yaml:"fg3,omitempty"`
 }
 
 func Parse() (*Config, error) {
@@ -42,15 +42,16 @@ func Parse() (*Config, error) {
 	k.Load(confmap.Provider(map[string]interface{}{
 		"config":     "~/.config/gorito.yaml",
 		"mode":       "superchip",
+		"speed":      2000,
 		"width":      1280,
 		"height":     640,
 		"fullscreen": false,
 		"opcodes":    false,
 		"level":      "INFO",
 		"bg":         "080808",
-		"fg1":        "5c8ab6",
-		"fg2":        "b65c5d",
-		"fg3":        "b55cb6",
+		"fg1":        "1e81b0",
+		"fg2":        "eab676",
+		"fg3":        "873e23",
 	}, "."), nil)
 
 	// Parse command line flags
@@ -61,7 +62,8 @@ func Parse() (*Config, error) {
 	}
 
 	f.StringP("config", "c", "", "path to one or more .yaml config files")
-	f.StringP("mode", "m", "", fmt.Sprintf("emulator mode, possible values: %s", strings.Join(emulator.SupportedModes(), ", ")))
+	f.StringP("mode", "m", "", fmt.Sprintf("emulator mode, possible values: %s", strings.Join(types.SupportedModes(), ", ")))
+	f.Uint16P("speed", "s", 0, "speed in cycles per seond")
 	f.StringP("rom", "r", "", "path to the rom you want to load")
 	f.IntP("width", "x", 0, "window width")
 	f.IntP("height", "y", 0, "window height")

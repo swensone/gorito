@@ -1,9 +1,11 @@
 package emulator
 
+import "github.com/swensone/gorito/types"
+
 type Audio interface {
 	Beep(on bool) error
 }
 
 type Display interface {
-	Draw(gfx []uint8) error
+	Draw(gfx []types.Color) error
 }

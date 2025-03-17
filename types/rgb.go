@@ -1,4 +1,4 @@
-package graphics
+package types
 
 import (
 	"errors"
@@ -7,13 +7,13 @@ import (
 	"strings"
 )
 
-type RGB struct {
+type Color struct {
 	R uint8
 	G uint8
 	B uint8
 }
 
-func (c *RGB) ParseString(s string) error {
+func (c *Color) ParseString(s string) error {
 	s = strings.TrimPrefix(s, "0x")
 
 	if len(s) != 6 {
@@ -42,11 +42,11 @@ func (c *RGB) ParseString(s string) error {
 	return nil
 }
 
-func (c *RGB) String() string {
+func (c *Color) String() string {
 	return fmt.Sprintf("%02X%02X%02X", c.R, c.G, c.B)
 }
 
-func (c *RGB) UnmarshalJSON(data []byte) error {
+func (c *Color) UnmarshalJSON(data []byte) error {
 	sdata := string(data)
 	// ignore null
 	if sdata == "null" || sdata == `""` {
@@ -60,6 +60,6 @@ func (c *RGB) UnmarshalJSON(data []byte) error {
 	return c.ParseString(sdata[1 : len(sdata)-1])
 }
 
-func (c *RGB) MarshalJSON() ([]byte, error) {
+func (c *Color) MarshalJSON() ([]byte, error) {
 	return []byte("\"" + c.String() + "\""), nil
 }

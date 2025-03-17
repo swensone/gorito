@@ -15,6 +15,7 @@ import (
 	"github.com/swensone/gorito/config"
 	"github.com/swensone/gorito/emulator"
 	"github.com/swensone/gorito/graphics"
+	"github.com/swensone/gorito/types"
 )
 
 func main() {
@@ -41,22 +42,22 @@ func main() {
 	// if the extension matches a mode, use it
 	romext := filepath.Ext(cfg.ROM)
 	if romext == ".xo8" {
-		cfg.Mode = emulator.MODE_XOCHIP
+		cfg.Mode = types.MODE_XOCHIP
 	} else if romext == ".sc8" {
-		cfg.Mode = emulator.MODE_SUPERCHIP
+		cfg.Mode = types.MODE_SUPERCHIP
 	}
 
 	// create a title for the display window
 	screenName := fmt.Sprintf("gorito - mode %s - %s", cfg.Mode.String(), emulator.RomName(cfg.ROM))
 
 	// create our graphics service
-	colormap := map[uint8]*graphics.RGB{
+	colorMap := map[uint8]types.Color{
 		0: cfg.BG,
 		1: cfg.FG1,
 		2: cfg.FG2,
 		3: cfg.FG3,
 	}
-	display, err := graphics.New(screenName, cfg.Width, cfg.Height, cfg.Fullscreen, cfg.Mode, colormap)
+	display, err := graphics.New(screenName, cfg.Width, cfg.Height, cfg.Fullscreen, cfg.BG)
 	if err != nil {
 		log.Error("failed to create graphics renderer", slog.Any("error", err))
 	}
@@ -69,7 +70,17 @@ func main() {
 	}
 	defer audio.Close()
 
-	emu, err := emulator.New(log, cfg.Opcodes, cfg.Mode, display, audio)
+	emu, err := emulator.New(
+		emulator.EmulatorConfig{
+			Mode:       cfg.Mode,
+			Speed:      cfg.Speed,
+			ColorMap:   colorMap,
+			LogOpcodes: cfg.Opcodes,
+		},
+		display,
+		audio,
+		log,
+	)
 	if err != nil {
 		log.Error("failure while creating cpu emulator", "error", err)
 		os.Exit(1)
