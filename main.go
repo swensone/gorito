@@ -1,8 +1,5 @@
 package main
 
-// typedef unsigned char Uint8;
-// void SineWave(void *userdata, Uint8 *stream, int len);
-import "C"
 import (
 	"fmt"
 	"log/slog"
@@ -25,14 +22,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     cfg.Level,
-	})
-	log := slog.New(handler)
-	slog.SetDefault(log)
+	log := getLogger(cfg.Level)
 	log.Debug("configuration", "cfg", cfg)
 
+	log.Debug("initializing sdl")
 	if err := initSDL(); err != nil {
 		slog.Error("failed to init sdl", slog.Any("error", err))
 		os.Exit(1)
@@ -51,6 +44,7 @@ func main() {
 	screenName := fmt.Sprintf("gorito - mode %s - %s", cfg.Mode.String(), emulator.RomName(cfg.ROM))
 
 	// create our graphics service
+	log.Debug("initializing graphics")
 	colorMap := map[uint8]types.Color{
 		0: cfg.BG,
 		1: cfg.FG1,
@@ -64,14 +58,13 @@ func main() {
 	defer display.Close()
 
 	// create our audio service
-	audio, err := audio.New()
-	if err != nil {
-		log.Error("failed to init sdl audio", slog.Any("error", err))
-	}
+	log.Debug("initializing audio")
+	audio := audio.New(20)
 	defer audio.Close()
 
 	emu, err := emulator.New(
 		emulator.EmulatorConfig{
+			Savefile:   cfg.Savefile,
 			Mode:       cfg.Mode,
 			Speed:      cfg.Speed,
 			ColorMap:   colorMap,
@@ -99,4 +92,14 @@ func initSDL() error {
 		return err
 	}
 	return nil
+}
+
+func getLogger(level slog.Level) *slog.Logger {
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     level,
+	})
+	log := slog.New(handler)
+	slog.SetDefault(log)
+	return log
 }

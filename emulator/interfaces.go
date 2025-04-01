@@ -3,7 +3,10 @@ package emulator
 import "github.com/swensone/gorito/types"
 
 type Audio interface {
-	Beep(on bool) error
+	Play()
+	Stop()
+	LoadPattern(pattern [16]uint8)
+	SetPitch(pitch uint8)
 }
 
 type Display interface {

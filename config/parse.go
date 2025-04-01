@@ -22,14 +22,15 @@ import (
 )
 
 type Config struct {
+	Savefile   string      `yaml:"savefile,omitempty"`
+	Level      slog.Level  `yaml:"level,omitempty"`
+	Opcodes    bool        `yaml:"opcodes,omitempty"`
 	Mode       types.Mode  `yaml:"mode,omitempty"`
 	Speed      uint32      `yaml:"speed,omitempty"`
 	ROM        string      `yaml:"rom,omitempty"`
 	Width      int32       `yaml:"width,omitempty"`
 	Height     int32       `yaml:"height,omitempty"`
 	Fullscreen bool        `yaml:"fullscreen,omitempty"`
-	Opcodes    bool        `yaml:"opcodes,omitempty"`
-	Level      slog.Level  `yaml:"level,omitempty"`
 	BG         types.Color `yaml:"bg,omitempty"`
 	FG1        types.Color `yaml:"fg1,omitempty"`
 	FG2        types.Color `yaml:"fg2,omitempty"`
@@ -40,14 +41,15 @@ func Parse() (*Config, error) {
 	k := koanf.New(".")
 	// set up some decent defaults
 	k.Load(confmap.Provider(map[string]interface{}{
+		"savefile":   "~/.config/gorito-storage.json",
 		"config":     "~/.config/gorito.yaml",
+		"level":      "INFO",
+		"opcodes":    false,
 		"mode":       "superchip",
-		"speed":      2000,
+		"speed":      600,
 		"width":      1280,
 		"height":     640,
 		"fullscreen": false,
-		"opcodes":    false,
-		"level":      "INFO",
 		"bg":         "080808",
 		"fg1":        "1e81b0",
 		"fg2":        "eab676",
@@ -62,14 +64,15 @@ func Parse() (*Config, error) {
 	}
 
 	f.StringP("config", "c", "", "path to one or more .yaml config files")
+	f.String("savefile", "", "save file location")
+	f.StringP("level", "l", "", "log level")
+	f.BoolP("opcodes", "o", false, "log opcodes, extremely noisy")
 	f.StringP("mode", "m", "", fmt.Sprintf("emulator mode, possible values: %s", strings.Join(types.SupportedModes(), ", ")))
 	f.Uint16P("speed", "s", 0, "speed in cycles per seond")
 	f.StringP("rom", "r", "", "path to the rom you want to load")
 	f.IntP("width", "x", 0, "window width")
 	f.IntP("height", "y", 0, "window height")
 	f.BoolP("fullscreen", "f", false, "display full screen")
-	f.BoolP("opcodes", "o", false, "log opcodes, extremely noisy")
-	f.StringP("level", "l", "", "log level")
 	f.String("bg", "", "background color in hex")
 	f.String("fg1", "", "foreground 1 color in hex")
 	f.String("fg2", "", "foreground 2 color in hex, only used in xo-chip")
