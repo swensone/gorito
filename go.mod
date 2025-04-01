@@ -16,6 +16,8 @@ require (
 require (
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
+	github.com/ebitengine/oto/v3 v3.3.2 // indirect
+	github.com/ebitengine/purego v0.8.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
@@ -31,6 +33,7 @@ require (
 )
 
 require (
+	github.com/gopxl/beep/v2 v2.1.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/knadh/koanf/parsers/json v0.1.0
 	github.com/knadh/koanf/parsers/yaml v0.1.0
@@ -40,6 +43,6 @@ require (
 	github.com/knadh/koanf/v2 v2.1.2
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/spf13/pflag v1.0.6
-	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+
 	"github.com/swensone/gorito/types"
 )
 
@@ -19,6 +20,7 @@ import (
 // 0x1000-0xFFFF - xo-chip high mem range
 
 type EmulatorConfig struct {
+	Savefile   string
 	Mode       types.Mode
 	Speed      uint32
 	ColorMap   map[uint8]types.Color
@@ -32,7 +34,7 @@ const (
 )
 
 func New(cfg EmulatorConfig, display Display, audio Audio, log *slog.Logger) (*Emulator, error) {
-	storage, err := newStorage("~/.config/gorito-storage.json", log)
+	storage, err := newStorage(cfg.Savefile, log)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +184,11 @@ func (e *Emulator) Run(rom string) error {
 				e.delayTimer--
 			}
 
-			e.audio.Beep(e.soundTimer > 0)
+			if e.soundTimer > 0 {
+				e.audio.Play()
+			} else {
+				e.audio.Stop()
+			}
 			if e.soundTimer > 0 {
 				e.soundTimer--
 			}
@@ -250,8 +256,14 @@ func (e *Emulator) Reset() {
 	}
 
 	// Clear audio
+	// set values to approximately A4 as a default
+	e.pitch = 247
 	for i := range e.audio_pattern {
-		e.audio_pattern[i] = 0
+		if i < len(e.audio_pattern)/2 {
+			e.audio_pattern[i] = 0x00
+		} else {
+			e.audio_pattern[i] = 0xff
+		}
 	}
 
 	// Load the fonts

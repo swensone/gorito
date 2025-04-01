@@ -9,5 +9,5 @@ func (e *Emulator) loadAudioPattern() {
 
 // FX3A: Set the audio pattern playback rate to 4000*2^((vx-64)/48)Hz
 func (e *Emulator) setAudioPitch(X uint8) {
-	e.pitch = e.registers[X]
+	e.audio.SetPitch(e.registers[X])
 }
